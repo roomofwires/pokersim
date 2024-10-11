@@ -219,11 +219,14 @@ fn simulate_game(num_players: usize, hand_rank_counts: &mut HashMap<HandRank, us
     deck.shuffle();
 
     // Deal two hole cards to each player
-    let players: Vec<Player> = (0..num_players)
+    let mut players: Vec<Player> = (0..num_players)
         .map(|_| Player {
             hand: vec![deck.deal().unwrap(), deck.deal().unwrap()],
         })
         .collect();
+
+    // Shuffle the players
+    players.shuffle(&mut thread_rng());
 
     // Deal five community cards
     let mut community_cards = Vec::with_capacity(5);
@@ -252,8 +255,11 @@ fn simulate_game(num_players: usize, hand_rank_counts: &mut HashMap<HandRank, us
         }
     }
 
-    // For simplicity, if there is a tie, we pick the first player
-    winner_indices[0]
+    // Randomly select a winner among tied players
+    let mut rng = thread_rng();
+    let winner = *winner_indices.choose(&mut rng).unwrap();
+
+    winner
 }
 
 fn main() {
