@@ -1,7 +1,9 @@
 use itertools::Itertools;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use rayon::prelude::*;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Suit {
@@ -262,7 +264,7 @@ fn simulate_game(num_players: usize, hand_rank_counts: &mut HashMap<&'static str
         // Get the category of the hand rank
         let category = hand_rank_category(&hand_rank);
 
-        // Count the hand rank category
+        // Count the hand rank category locally
         *hand_rank_counts.entry(category).or_insert(0) += 1;
 
         if hand_rank > best_hand_rank {
@@ -285,13 +287,36 @@ fn main() {
     let num_games = 1_000_000;
     let num_players = 6;
 
-    let mut wins = vec![0; num_players];
-    let mut hand_rank_counts: HashMap<&'static str, usize> = HashMap::new();
+    // Use Arc and Mutex for shared data
+    let wins = Arc::new(Mutex::new(vec![0usize; num_players]));
+    let hand_rank_counts = Arc::new(Mutex::new(HashMap::new()));
 
-    for _ in 0..num_games {
-        let winner = simulate_game(num_players, &mut hand_rank_counts);
-        wins[winner] += 1;
-    }
+    (0..num_games).into_par_iter().for_each(|_| {
+        let mut local_hand_rank_counts: HashMap<&'static str, usize> = HashMap::new();
+
+        let winner = simulate_game(num_players, &mut local_hand_rank_counts);
+
+        // Update wins
+        {
+            let mut wins_lock = wins.lock().unwrap();
+            wins_lock[winner] += 1;
+        }
+
+        // Update hand rank counts
+        {
+            let mut hand_rank_counts_lock = hand_rank_counts.lock().unwrap();
+            for (key, count) in local_hand_rank_counts {
+                *hand_rank_counts_lock.entry(key).or_insert(0) += count;
+            }
+        }
+    });
+
+    // Retrieve the results
+    let wins = Arc::try_unwrap(wins).unwrap().into_inner().unwrap();
+    let hand_rank_counts = Arc::try_unwrap(hand_rank_counts)
+        .unwrap()
+        .into_inner()
+        .unwrap();
 
     // Display player wins
     for (i, &win_count) in wins.iter().enumerate() {
