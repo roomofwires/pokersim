@@ -86,7 +86,7 @@ struct Player {
     hand: Vec<Card>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum HandRank {
     HighCard(Rank),
     OnePair(Rank),
@@ -98,6 +98,22 @@ enum HandRank {
     FourOfAKind(Rank),
     StraightFlush(Rank),
     RoyalFlush,
+}
+
+// Function to map HandRank instances to their categories
+fn hand_rank_category(hand_rank: &HandRank) -> &'static str {
+    match hand_rank {
+        HandRank::HighCard(_) => "HighCard",
+        HandRank::OnePair(_) => "OnePair",
+        HandRank::TwoPair(_, _) => "TwoPair",
+        HandRank::ThreeOfAKind(_) => "ThreeOfAKind",
+        HandRank::Straight(_) => "Straight",
+        HandRank::Flush(_) => "Flush",
+        HandRank::FullHouse(_, _) => "FullHouse",
+        HandRank::FourOfAKind(_) => "FourOfAKind",
+        HandRank::StraightFlush(_) => "StraightFlush",
+        HandRank::RoyalFlush => "RoyalFlush",
+    }
 }
 
 fn is_sequence(mut ranks: Vec<u8>) -> bool {
@@ -214,7 +230,7 @@ fn evaluate_hand(cards: &[Card]) -> HandRank {
     best_rank
 }
 
-fn simulate_game(num_players: usize, hand_rank_counts: &mut HashMap<HandRank, usize>) -> usize {
+fn simulate_game(num_players: usize, hand_rank_counts: &mut HashMap<&'static str, usize>) -> usize {
     let mut deck = Deck::new();
     deck.shuffle();
 
@@ -225,7 +241,7 @@ fn simulate_game(num_players: usize, hand_rank_counts: &mut HashMap<HandRank, us
         })
         .collect();
 
-    // Shuffle the players
+    // Shuffle the players to randomize their order
     players.shuffle(&mut thread_rng());
 
     // Deal five community cards
@@ -243,8 +259,11 @@ fn simulate_game(num_players: usize, hand_rank_counts: &mut HashMap<HandRank, us
         all_cards.extend_from_slice(&community_cards);
         let hand_rank = evaluate_hand(&all_cards);
 
-        // Count the hand rank
-        *hand_rank_counts.entry(hand_rank.clone()).or_insert(0) += 1;
+        // Get the category of the hand rank
+        let category = hand_rank_category(&hand_rank);
+
+        // Count the hand rank category
+        *hand_rank_counts.entry(category).or_insert(0) += 1;
 
         if hand_rank > best_hand_rank {
             best_hand_rank = hand_rank;
@@ -267,7 +286,7 @@ fn main() {
     let num_players = 6;
 
     let mut wins = vec![0; num_players];
-    let mut hand_rank_counts: HashMap<HandRank, usize> = HashMap::new();
+    let mut hand_rank_counts: HashMap<&'static str, usize> = HashMap::new();
 
     for _ in 0..num_games {
         let winner = simulate_game(num_players, &mut hand_rank_counts);
@@ -279,13 +298,15 @@ fn main() {
         println!("Player {} wins {} times", i + 1, win_count);
     }
 
-    // Display most common hand ranks
-    println!("\nMost common hand ranks:");
-    let mut hand_rank_vec: Vec<(&HandRank, &usize)> = hand_rank_counts.iter().collect();
+    // Display most common hand rank categories
+    println!("\nHand rank frequencies:");
+    let mut hand_rank_vec: Vec<(&&'static str, &usize)> = hand_rank_counts.iter().collect();
     hand_rank_vec.sort_by(|a, b| b.1.cmp(a.1)); // Sort by frequency descending
 
+    let total_hands = num_games * num_players;
+
     for (hand_rank, count) in hand_rank_vec {
-        let percentage = (*count as f64 / (num_games * num_players) as f64) * 100.0;
-        println!("{:?}: {} times ({:.4}%)", hand_rank, count, percentage);
+        let percentage = (*count as f64 / total_hands as f64) * 100.0;
+        println!("{}: {} times ({:.4}%)", hand_rank, count, percentage);
     }
 }
